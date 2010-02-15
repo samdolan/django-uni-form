@@ -1,4 +1,5 @@
 from django import forms
+from django.forms.formsets import formset_factory
 from django.template import Context, Template
 from django.template.loader import get_template_from_string
 from django.test import TestCase
@@ -13,6 +14,9 @@ class TestForm(forms.Form):
     password2 = forms.CharField(label="re-enter password", max_length=30, required=True, widget=forms.PasswordInput())
     first_name = forms.CharField(label="first name", max_length=30, required=True, widget=forms.TextInput())
     last_name = forms.CharField(label="last name", max_length=30, required=True, widget=forms.TextInput())
+
+
+TestFormset = formset_factory(TestForm)
 
 
 class TestBasicFunctionalityTags(TestCase):
@@ -39,7 +43,24 @@ class TestBasicFunctionalityTags(TestCase):
         
         self.assertTrue("<td>" not in html)
         self.assertTrue("id_is_company" in html)
-    
+
+    def test_as_uni_form_set(self):
+
+        # build the context
+        c = Context({'formset':TestFormset()})
+
+        # Simple formset template
+        template = get_template_from_string("""
+{% load uni_form_tags %}
+{{ formset|as_uni_form_set }}
+        """)
+
+        # render the formset template
+        html = template.render(c)
+
+        self.assertTrue("<td>" not in html)
+        self.assertTrue("id_form-0-is_company" in html)
+
     def test_uni_form_setup(self):
         
         c = Context()
