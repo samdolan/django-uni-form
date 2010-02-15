@@ -18,4 +18,6 @@ Michael Lind Mortensen <illio>
 mvaerle
 Patrick Lauber <digi604>
 Skylar Saveland <skyl>
+Victor Nagy <nagyv>
+Antti Kaihola <akaihola>
 
