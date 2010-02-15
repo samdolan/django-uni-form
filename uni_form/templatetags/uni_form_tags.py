@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.template import Context, Template
+from django.forms.formsets import BaseFormSet
 from django.template.loader import get_template
 from django import template
 
@@ -69,7 +70,52 @@ def namify(text):
     return slugify(text).replace('-','_')
     
 
-class BasicNode(template.Node):
+class HelperHandlerNode(template.Node):
+    """Base class for form and formset nodes
+
+    This base class provides the ability to extract attributes from a helper
+    into a template context.  This is shared by all uni-form node types.
+    """
+    def __init__(self, helper):
+        self.helper = template.Variable(helper)
+
+    def get_render(self, context):
+        helper = self.helper.resolve(context)
+        attrs = {}
+        if helper:
+            attrs = helper.get_attr()
+        response_dict = self.get_response_context(context, helper, attrs)
+        return Context(response_dict)
+
+    def get_response_context(self, context, helper, helper_attrs):
+        """Extract attributes from a helper or use default values
+
+        Attributes:
+         * context: the current template context
+         * helper: the uni-form helper object or None if none provided
+         * helper_attrs: a dict of attributes extracted from the helper object,
+                         or an empty dict if no helper provided
+
+        Return value: a dictionary to be inserted in the context when rendering
+                      the form/formset
+
+        Override this method to provide extra attributes for helpers.
+        """
+        form_method = helper_attrs.get("form_method", 'POST')
+        form_action = helper_attrs.get("form_action", '')
+        form_class = helper_attrs.get("class", '')
+        form_id = helper_attrs.get("id", "")
+        inputs = helper_attrs.get('inputs', [])
+
+        return {'form_action': form_action,
+                'form_method': form_method,
+                'attrs': helper_attrs,
+                'form_class': form_class,
+                'form_id': form_id,
+                'inputs': inputs}
+
+
+class BasicNode(HelperHandlerNode):
     """ Basic Node object that we can rely on for Node objects in normal
         template tags. I created this because most of the tags we'll be using
         will need both the form object and the helper string. This handles
@@ -78,50 +124,53 @@ class BasicNode(template.Node):
     
     def __init__(self, form, helper):
         self.form = template.Variable(form)
-        self.helper = template.Variable(helper)
-    
-    def get_render(self, context):
+        HelperHandlerNode.__init__(self, helper)
+
+    def get_response_context(self, context, helper, helper_attrs):
         actual_form = self.form.resolve(context)
-        helper = self.helper.resolve(context)
-        attrs = None
-        if helper:
-            attrs = helper.get_attr()
-        form_class = ''
-        form_id = ''
-        inputs = []
-        toggle_fields = set(())
-        if attrs:
-            form_method = attrs.get("form_method", 'POST')
-            form_action = attrs.get("form_action", '')
-            form_class = attrs.get("class", '')
-            form_id = attrs.get("id", "")
-            inputs = attrs.get('inputs', [])
-            toggle_fields = attrs.get('toggle_fields', set(()))
+        toggle_fields = helper_attrs.get('toggle_fields', set(()))
         final_toggle_fields = []
         if toggle_fields:
             final_toggle_fields = []
             for field in actual_form:
                 if field.auto_id in toggle_fields:
                     final_toggle_fields.append(field)
-        
+
+        response_dict = super(BasicNode, self).get_response_context(
+            context, helper, helper_attrs)
+        response_dict['form'] = actual_form
+        response_dict['toggle_fields'] = final_toggle_fields
         if helper and helper.layout:
             form_html = helper.render_layout(actual_form)
         else:
             form_html = ""
-        response_dict = {
-                        'form':actual_form,
-                        'form_html':form_html,
-                        'form_action':form_action,
-                        'form_method':form_method,
-                        'attrs':attrs,
-                        'form_class' : form_class,
-                        'form_id' : form_id,
-                        'inputs' : inputs,
-                        'toggle_fields': final_toggle_fields
-                        }
-        c = Context(response_dict)
-        return c
-        
+        response_dict['form_html'] = form_html
+        return response_dict
+
+class BasicFormsetNode(HelperHandlerNode):
+    """Base class for formset template tag nodes
+
+    This base class extends the helper attributes handler by:
+     * storing the formset in context['formset']
+     * rendering all subforms with the helper's layout if available
+    """
+    def __init__(self, formset, helper):
+        self.formset = template.Variable(formset)
+        HelperHandlerNode.__init__(self, helper)
+
+    def get_response_context(self, context, helper, helper_attrs):
+        if 'toggle_fields' in helper_attrs:
+            raise NotImplementedError(
+                "'toggle_fields' not yet supported for formsets")
+        actual_formset = self.formset.resolve(context)
+        response_dict = super(BasicFormsetNode, self).get_response_context(
+            context, helper, helper_attrs)
+        response_dict['formset'] = actual_formset
+        if helper and helper.layout:
+            for form in actual_formset.forms:
+                form.form_html = helper.render_layout(form)
+        return response_dict
+
 
 ##################################################################
 #
@@ -205,7 +254,41 @@ class UniFormNode(BasicNode):
         
         template = get_template('uni_form/whole_uni_form.html')
         return template.render(c)
-        
+
+
+@register.tag(name="uni_form_set")
+def do_uni_form_set(parser, token):
+
+    """
+    You need to pass in at least the formset object, and can also pass in the
+    optional helper object (see :module:`uni_form.helpers`).
+
+    Example::
+
+        {% uni_form_set my-formset my_helper %}
+
+    """
+
+    token = token.split_contents()
+
+    formset = token.pop(1)
+    try:
+        helper = token.pop(1)
+    except IndexError:
+        helper = None
+
+    return UniFormsetNode(formset, helper)
+
+
+class UniFormsetNode(BasicFormsetNode):
+
+    def render(self, context):
+
+        c = self.get_render(context)
+
+        template = get_template('uni_form/whole_uni_form_set.html')
+        return template.render(c)
+
 
 #################################
 # uni_form scripts
