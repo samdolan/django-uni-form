@@ -9,6 +9,10 @@ Using the django-uni-form filter (Easy and fun!)
 
     {{ my_form|as_uni_form }}
 
+   Or, to render a formset::
+
+    {{ my_formset|as_uni_form_set }}
+
 3. Add the class of 'uniForm' to your form. Example::
 
     <form action="" method="post" class="uniForm">
