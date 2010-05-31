@@ -1,6 +1,8 @@
 {% load uni_form_tags i18n %}
 
 <form action="{{ form_action }}" class="uniForm {{ form_class }}" method="{{ form_method }}"{% if form_id %} id="{{ form_id|slugify }}"{% endif %}{% if formset.is_multipart %} enctype="multipart/form-data"{% endif %}>
+	{% csrf_token %}
+	{{ formset.management_form|as_uni_form }}
     <fieldset class="inlineLabels">
         <legend>* {% trans "Required fields" %}</legend>
         {% for form in formset.forms %}

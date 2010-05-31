@@ -217,6 +217,8 @@ class BasicFormsetNode(HelperHandlerNode):
         if helper and helper.layout:
             for form in actual_formset.forms:
                 form.form_html = helper.render_layout(form)
+        if not is_old_django and context.has_key('csrf_token'):
+            response_dict['csrf_token'] = context['csrf_token']
         return response_dict
 
 
