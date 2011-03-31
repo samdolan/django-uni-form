@@ -1,4 +1,3 @@
-from django import get_version # TODO: remove when pre-CSRF token templatetags are no longer supported
 from django.conf import settings
 from django.template import Context, Template
 from django.forms.formsets import BaseFormSet
@@ -11,13 +10,14 @@ from uni_form.helpers import FormHelper
 
 register = template.Library()
 
-# csrf token fix hack. 
-# TODO: remove when pre-CSRF token templatetags are no longer supported
-django_version = get_version()
-is_old_django = True
-if django_version.startswith('1.1.2') or django_version.startswith('1.2'):
-    is_old_django = False
-else:
+# csrf_token support was added in 1.1.2, so attempt to
+# import it here.  If we can find it we know we can support
+# it and we set the supports_csrf_token accordingly.
+try:
+    from django.template.defaulttags import csrf_token
+    supports_csrf_token = True
+except ImportError:
+    supports_csrf_token = False
     from warnings import warn
     warn("""You are using a version of Django that does not support the new csrf_token templatetag. It is advised that you upgrade to 1.1.2, 1.2, or another modern version of Django""")
 
@@ -162,7 +162,7 @@ that templates can easily handle. """
             form_id = attrs.get("id", "")
             inputs = attrs.get('inputs', [])
             toggle_fields = attrs.get('toggle_fields', set(()))
-            use_csrf_protection = attrs.get('use_csrf_protection', False)
+            use_csrf_protection = attrs.get('use_csrf_protection', supports_csrf_token)
         final_toggle_fields = []
         if toggle_fields:
             final_toggle_fields = []
@@ -187,7 +187,7 @@ that templates can easily handle. """
                         'toggle_fields': final_toggle_fields
                         }
 
-        if not is_old_django: # TODO: remove when pre-CSRF token templatetags are no longer supported
+        if supports_csrf_token: # TODO: remove when pre-CSRF token templatetags are no longer supported
             if use_csrf_protection and context.has_key('csrf_token'):
                 response_dict['csrf_token'] = context['csrf_token']
 
@@ -217,7 +217,7 @@ class BasicFormsetNode(HelperHandlerNode):
         if helper and helper.layout:
             for form in actual_formset.forms:
                 form.form_html = helper.render_layout(form)
-        if not is_old_django and context.has_key('csrf_token'):
+        if supports_csrf_token and context.has_key('csrf_token'):
             response_dict['csrf_token'] = context['csrf_token']
         return response_dict
 
@@ -340,7 +340,7 @@ class UniFormJqueryNode(BasicNode):
 
 
 # TODO: remove when pre-CSRF token templatetags are no longer supported
-if is_old_django:
+if not supports_csrf_token:
 
     # csrf token fix hack.     
     # Creates bogus csrf_token so we can continue to support older versions of Django.
