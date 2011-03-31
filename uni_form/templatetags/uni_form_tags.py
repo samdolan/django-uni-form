@@ -153,7 +153,7 @@ that templates can easily handle. """
         form_tag = True
         inputs = []
         toggle_fields = set(())
-        use_csrf_protection = False
+        use_csrf_protection = supports_csrf_token 
         if attrs:
             form_tag = attrs.get("form_tag", True)
             form_method = attrs.get("form_method", form_method)
@@ -188,7 +188,7 @@ that templates can easily handle. """
                         }
 
         if supports_csrf_token: # TODO: remove when pre-CSRF token templatetags are no longer supported
-            if use_csrf_protection and context.has_key('csrf_token'):
+            if context.has_key('csrf_token'):
                 response_dict['csrf_token'] = context['csrf_token']
 
         c = Context(response_dict)
