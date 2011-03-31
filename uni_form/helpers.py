@@ -189,7 +189,7 @@ class Row(object):
         output = u'<div class="%s">' % self.css
         for field in self.fields:
             output += render_field(field, form)
-        output += u'</div>'
+        output += u'<div style="clear:both;"></div></div>'
         return u''.join(output)
 
 
